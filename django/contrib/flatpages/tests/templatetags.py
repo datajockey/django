@@ -3,7 +3,9 @@ from django.conf import settings
 from django.contrib.auth.models import AnonymousUser, User
 from django.template import Template, Context, TemplateSyntaxError
 from django.test import TestCase
+from django.test.utils import override_settings
 
+@override_settings(SITE_ID=1)
 class FlatpageTemplateTagTests(TestCase):
     fixtures = ['sample_flatpages']
     urls = 'django.contrib.flatpages.tests.urls'

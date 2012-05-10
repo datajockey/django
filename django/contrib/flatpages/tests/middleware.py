@@ -3,9 +3,11 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.flatpages.models import FlatPage
 from django.test import TestCase
+from django.test.utils import override_settings
 
+@override_settings(SITE_ID=1)
 class FlatpageMiddlewareTests(TestCase):
-    fixtures = ['sample_flatpages']
+    fixtures = ['sample_flatpages', 'example_site']
     urls = 'django.contrib.flatpages.tests.urls'
 
     def setUp(self):
@@ -79,15 +81,16 @@ class FlatpageMiddlewareTests(TestCase):
             enable_comments=False,
             registration_required=False,
         )
-        fp.sites.add(1)
+        fp.sites.add(settings.SITE_ID)
 
         response = self.client.get('/some.very_special~chars-here/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "<p>Isn't it special!</p>")
 
 
+@override_settings(SITE_ID=1)
 class FlatpageMiddlewareAppendSlashTests(TestCase):
-    fixtures = ['sample_flatpages']
+    fixtures = ['sample_flatpages', 'example_site']
     urls = 'django.contrib.flatpages.tests.urls'
 
     def setUp(self):
@@ -142,7 +145,7 @@ class FlatpageMiddlewareAppendSlashTests(TestCase):
             enable_comments=False,
             registration_required=False,
         )
-        fp.sites.add(1)
+        fp.sites.add(settings.SITE_ID)
 
         response = self.client.get('/some.very_special~chars-here')
         self.assertRedirects(response, '/some.very_special~chars-here/', status_code=301)
@@ -156,7 +159,7 @@ class FlatpageMiddlewareAppendSlashTests(TestCase):
             enable_comments=False,
             registration_required=False,
         )
-        fp.sites.add(1)
+        fp.sites.add(settings.SITE_ID)
 
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)

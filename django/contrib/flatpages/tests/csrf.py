@@ -2,9 +2,11 @@ import os
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.test import TestCase, Client
+from django.test.utils import override_settings
 
+@override_settings(SITE_ID=1)
 class FlatpageCSRFTests(TestCase):
-    fixtures = ['sample_flatpages']
+    fixtures = ['sample_flatpages', 'example_site']
     urls = 'django.contrib.flatpages.tests.urls'
 
     def setUp(self):
