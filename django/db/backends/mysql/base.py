@@ -177,7 +177,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             # will tell you the default table type of the created
             # table. Since all Django's test tables will have the same
             # table type, that's enough to evaluate the feature.
-            cursor.execute("SHOW TABLE STATUS WHERE Name='INTROSPECT_TEST'")
+            cursor.execute("SHOW TABLE STATUS LIKE 'INTROSPECT_TEST'")
             result = cursor.fetchone()
             cursor.execute('DROP TABLE INTROSPECT_TEST')
             self._storage_engine = result[1]
@@ -407,11 +407,20 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     def get_server_version(self):
         if not self.server_version:
+            new_connection = False
             if not self._valid_connection():
-                self.cursor()
-            m = server_version_re.match(self.connection.get_server_info())
+                # Ensure we have a connection with the DB by using a temporary
+                # cursor
+                new_connection = True
+                self.cursor().close()
+            server_info = self.connection.get_server_info()
+            if new_connection:
+                # Make sure we close the connection
+                self.connection.close()
+                self.connection = None
+            m = server_version_re.match(server_info)
             if not m:
-                raise Exception('Unable to determine MySQL version from version string %r' % self.connection.get_server_info())
+                raise Exception('Unable to determine MySQL version from version string %r' % server_info)
             self.server_version = tuple([int(x) for x in m.groups()])
         return self.server_version
 

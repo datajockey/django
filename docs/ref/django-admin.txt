@@ -232,8 +232,8 @@ flush
 
 .. django-admin:: flush
 
-Returns the database to the state it was in immediately after syncdb was
-executed. This means that all data will be removed from the database, any
+Returns the database to the state it was in immediately after :djadmin:`syncdb`
+was executed. This means that all data will be removed from the database, any
 post-synchronization handlers will be re-executed, and the ``initial_data``
 fixture will be re-installed.
 
@@ -707,6 +707,7 @@ Example usage::
 
 .. versionadded:: 1.4
 
+Since version 1.4, the development server is multithreaded by default.
 Use the ``--nothreading`` option to disable the use of threading in the
 development server.
 
@@ -939,14 +940,19 @@ either the path to a directory with the app template file, or a path to a
 compressed file (``.tar.gz``, ``.tar.bz2``, ``.tgz``, ``.tbz``, ``.zip``)
 containing the app template files.
 
-Django will also accept URLs (``http``, ``https``, ``ftp``) to compressed
-archives with the app template files, downloading and extracting them on the
-fly.
-
 For example, this would look for an app template in the given directory when
 creating the ``myapp`` app::
 
     django-admin.py startapp --template=/Users/jezdez/Code/my_app_template myapp
+
+Django will also accept URLs (``http``, ``https``, ``ftp``) to compressed
+archives with the app template files, downloading and extracting them on the
+fly.
+
+For example, taking advantage of Github's feature to expose repositories as
+zip files, you can use a URL like::
+
+    django-admin.py startapp --template=https://github.com/githubuser/django-app-template/archive/master.zip myapp
 
 .. versionadded:: 1.4
 
@@ -956,7 +962,8 @@ through the template engine: the files whose extensions match the
 with the ``--name`` option. The :class:`template context
 <django.template.Context>` used is:
 
-- Any option passed to the startapp command
+- Any option passed to the startapp command (among the command's supported
+  options)
 - ``app_name`` -- the app name as passed to the command
 - ``app_directory`` -- the full path of the newly created app
 
@@ -1012,6 +1019,15 @@ For example, this would look for a project template in the given directory
 when creating the ``myproject`` project::
 
     django-admin.py startproject --template=/Users/jezdez/Code/my_project_template myproject
+
+Django will also accept URLs (``http``, ``https``, ``ftp``) to compressed
+archives with the project template files, downloading and extracting them on the
+fly.
+
+For example, taking advantage of Github's feature to expose repositories as
+zip files, you can use a URL like::
+
+    django-admin.py startproject --template=https://github.com/githubuser/django-project-template/archive/master.zip myproject
 
 When Django copies the project template files, it also renders certain files
 through the template engine: the files whose extensions match the

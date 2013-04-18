@@ -63,6 +63,7 @@ real_rollback = transaction.rollback
 real_enter_transaction_management = transaction.enter_transaction_management
 real_leave_transaction_management = transaction.leave_transaction_management
 real_managed = transaction.managed
+real_abort = transaction.abort
 
 def nop(*args, **kwargs):
     return
@@ -73,6 +74,7 @@ def disable_transaction_methods():
     transaction.enter_transaction_management = nop
     transaction.leave_transaction_management = nop
     transaction.managed = nop
+    transaction.abort = nop
 
 def restore_transaction_methods():
     transaction.commit = real_commit
@@ -80,6 +82,7 @@ def restore_transaction_methods():
     transaction.enter_transaction_management = real_enter_transaction_management
     transaction.leave_transaction_management = real_leave_transaction_management
     transaction.managed = real_managed
+    transaction.abort = real_abort
 
 
 def assert_and_parse_html(self, html, user_msg, msg):
@@ -1143,4 +1146,11 @@ class LiveServerTestCase(TransactionTestCase):
         if hasattr(cls, 'server_thread'):
             # Terminate the live server's thread
             cls.server_thread.join()
+
+        # Restore sqlite connections' non-sharability
+        for conn in connections.all():
+            if (conn.settings_dict['ENGINE'] == 'django.db.backends.sqlite3'
+                and conn.settings_dict['NAME'] == ':memory:'):
+                conn.allow_thread_sharing = False
+
         super(LiveServerTestCase, cls).tearDownClass()

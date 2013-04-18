@@ -456,6 +456,10 @@ class AdminViewBasicTest(TestCase):
         response = self.client.get('/test_admin/%s/admin_views/thing/' % self.urlbit, {'color__id__exact': 'StringNotInteger!'})
         self.assertRedirects(response, '/test_admin/%s/admin_views/thing/?e=1' % self.urlbit)
 
+        # Regression test for #18530
+        response = self.client.get('/test_admin/%s/admin_views/thing/' % self.urlbit, {'pub_date__gte': 'foo'})
+        self.assertRedirects(response, '/test_admin/%s/admin_views/thing/?e=1' % self.urlbit)
+
     def testIsNullLookups(self):
         """Ensure is_null is handled correctly."""
         Article.objects.create(title="I Could Go Anywhere", content="Versatile", date=datetime.datetime.now())
@@ -1058,6 +1062,46 @@ class AdminViewPermissionsTest(TestCase):
             self.assertEqual(RowLevelChangePermissionModel.objects.get(id=2).name, 'changed')
             self.assertEqual(request.status_code, 200)
             self.assertContains(request, 'login-form')
+            self.client.get('/test_admin/admin/logout/')
+
+    def testHistoryView(self):
+        """History view should restrict access."""
+
+        # add user shoud not be able to view the list of article or change any of them
+        self.client.get('/test_admin/admin/')
+        self.client.post('/test_admin/admin/', self.adduser_login)
+        response = self.client.get('/test_admin/admin/admin_views/article/1/history/')
+        self.assertEqual(response.status_code, 403)
+        self.client.get('/test_admin/admin/logout/')
+
+        # change user can view all items and edit them
+        self.client.get('/test_admin/admin/')
+        self.client.post('/test_admin/admin/', self.changeuser_login)
+        response = self.client.get('/test_admin/admin/admin_views/article/1/history/')
+        self.assertEqual(response.status_code, 200)
+
+        # Test redirection when using row-level change permissions. Refs #11513.
+        RowLevelChangePermissionModel.objects.create(id=1, name="odd id")
+        RowLevelChangePermissionModel.objects.create(id=2, name="even id")
+        for login_dict in [self.super_login, self.changeuser_login, self.adduser_login, self.deleteuser_login]:
+            self.client.post('/test_admin/admin/', login_dict)
+            response = self.client.get('/test_admin/admin/admin_views/rowlevelchangepermissionmodel/1/history/')
+            self.assertEqual(response.status_code, 403)
+
+            response = self.client.get('/test_admin/admin/admin_views/rowlevelchangepermissionmodel/2/history/')
+            self.assertEqual(response.status_code, 200)
+
+            self.client.get('/test_admin/admin/logout/')
+
+        for login_dict in [self.joepublic_login, self.no_username_login]:
+            self.client.post('/test_admin/admin/', login_dict)
+            response = self.client.get('/test_admin/admin/admin_views/rowlevelchangepermissionmodel/1/history/')
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, 'login-form')
+            response = self.client.get('/test_admin/admin/admin_views/rowlevelchangepermissionmodel/2/history/')
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, 'login-form')
+
             self.client.get('/test_admin/admin/logout/')
 
     def testConditionallyShowAddSectionLink(self):

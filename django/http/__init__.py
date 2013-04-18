@@ -9,7 +9,7 @@ import warnings
 
 from pprint import pformat
 from urllib import urlencode, quote
-from urlparse import urljoin
+from urlparse import urljoin, urlparse
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -114,7 +114,7 @@ class CompatCookie(SimpleCookie):
 
 from django.conf import settings
 from django.core import signing
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, SuspiciousOperation
 from django.core.files import uploadhandler
 from django.http.multipartparser import MultiPartParser
 from django.http.utils import *
@@ -126,6 +126,8 @@ from django.utils import timezone
 RESERVED_CHARS="!*'();:@&=+$,/?%#[]"
 
 absolute_http_url_re = re.compile(r"^https?://", re.I)
+host_validation_re = re.compile(r"^([a-z0-9.-]+|\[[a-f0-9]*:[a-f0-9:]+\])(:\d+)?$")
+
 
 class Http404(Exception):
     pass
@@ -212,7 +214,13 @@ class HttpRequest(object):
             server_port = str(self.META['SERVER_PORT'])
             if server_port != (self.is_secure() and '443' or '80'):
                 host = '%s:%s' % (host, server_port)
-        return host
+
+        allowed_hosts = ['*'] if settings.DEBUG else settings.ALLOWED_HOSTS
+        if validate_host(host, allowed_hosts):
+            return host
+        else:
+            raise SuspiciousOperation(
+                "Invalid HTTP_HOST header (you may need to set ALLOWED_HOSTS): %s" % host)
 
     def get_full_path(self):
         # RFC 3986 requires query string arguments to be in the ASCII range.
@@ -731,19 +739,21 @@ class HttpResponse(object):
             raise Exception("This %s instance cannot tell its position" % self.__class__)
         return sum([len(str(chunk)) for chunk in self._container])
 
-class HttpResponseRedirect(HttpResponse):
+class HttpResponseRedirectBase(HttpResponse):
+    allowed_schemes = ['http', 'https', 'ftp']
+
+    def __init__(self, redirect_to):
+        super(HttpResponseRedirectBase, self).__init__()
+        parsed = urlparse(redirect_to)
+        if parsed.scheme and parsed.scheme not in self.allowed_schemes:
+            raise SuspiciousOperation("Unsafe redirect to URL with scheme '%s'" % parsed.scheme)
+        self['Location'] = iri_to_uri(redirect_to)
+
+class HttpResponseRedirect(HttpResponseRedirectBase):
     status_code = 302
 
-    def __init__(self, redirect_to):
-        super(HttpResponseRedirect, self).__init__()
-        self['Location'] = iri_to_uri(redirect_to)
-
-class HttpResponsePermanentRedirect(HttpResponse):
+class HttpResponsePermanentRedirect(HttpResponseRedirectBase):
     status_code = 301
-
-    def __init__(self, redirect_to):
-        super(HttpResponsePermanentRedirect, self).__init__()
-        self['Location'] = iri_to_uri(redirect_to)
 
 class HttpResponseNotModified(HttpResponse):
     status_code = 304
@@ -790,3 +800,43 @@ def str_to_unicode(s, encoding):
     else:
         return s
 
+def validate_host(host, allowed_hosts):
+    """
+    Validate the given host header value for this site.
+
+    Check that the host looks valid and matches a host or host pattern in the
+    given list of ``allowed_hosts``. Any pattern beginning with a period
+    matches a domain and all its subdomains (e.g. ``.example.com`` matches
+    ``example.com`` and any subdomain), ``*`` matches anything, and anything
+    else must match exactly.
+
+    Return ``True`` for a valid host, ``False`` otherwise.
+
+    """
+    # All validation is case-insensitive
+    host = host.lower()
+
+    # Basic sanity check
+    if not host_validation_re.match(host):
+        return False
+
+    # Validate only the domain part.
+    if host[-1] == ']':
+        # It's an IPv6 address without a port.
+        domain = host
+    else:
+        domain = host.rsplit(':', 1)[0]
+
+    for pattern in allowed_hosts:
+        pattern = pattern.lower()
+        match = (
+            pattern == '*' or
+            pattern.startswith('.') and (
+                domain.endswith(pattern) or domain == pattern[1:]
+                ) or
+            pattern == domain
+            )
+        if match:
+            return True
+
+    return False
